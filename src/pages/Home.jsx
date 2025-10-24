@@ -66,7 +66,7 @@ const TIME_ZONES = [
   { value: "Antarctica/Palmer", label: "Palmer", flag: "🇦🇶" },
   { value: "Asia/Kathmandu", label: "Kathmandu", flag: "🇳🇵" },
   { value: "Asia/Colombo", label: "Colombo", flag: "🇱🇰" },
-  { value: "Asia/Jerusalem", label: "Jerusalem", flag: "🇮🇱" },
+  { value: "Asia/Gaza", label: "Gaza", flag: "🇵🇸" },
   { value: "Europe/Helsinki", label: "Helsinki", flag: "🇫🇮" },
   { value: "Europe/Athens", label: "Athens", flag: "🇬🇷" },
   { value: "Europe/Dublin", label: "Dublin", flag: "🇮🇪" },
