@@ -6,7 +6,7 @@ export default function Header() {
   const navigate = useNavigate();
 
   return (
-    <header className="sticky md:fixed top-4 md:left-1/2 transform md:-translate-x-1/2 z-50 p-3 flex justify-between items-center max-w-7xl w-full md:rounded-2xl bg-neutral-900/80 backdrop-blur-xl shadow-lg md:border border-neutral-800">
+    <header className="sticky md:fixed top-0 md:top-4 md:left-1/2 transform md:-translate-x-1/2 z-50 p-3 flex justify-between items-center max-w-7xl w-full md:rounded-2xl bg-neutral-900/80 backdrop-blur-xl shadow-lg md:border border-neutral-800">
       <h1 className="text-2xl font-bold text-white tracking-wide ms-3">Tizo</h1>
 
       <nav className="flex gap-2">
