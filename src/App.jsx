@@ -6,7 +6,7 @@ import FloatingCredit from "./components/FloatingCredit";
 
 function App() {
   return (
-    <div className="bg-background text-foreground min-h-screen">
+    <div className="bg-background text-foreground min-h-screen flex flex-col items-center gap-0 md:gap-12">
       <Header />
       <Routes>
         <Route path="/" element={<Home />} />

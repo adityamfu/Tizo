@@ -551,7 +551,7 @@ export default function Home() {
   };
 
   return (
-    <div className="md:min-h-screen flex flex-col items-center justify-center p-0 md:p-6">
+    <div className="w-full flex flex-col items-center justify-center">
       <div className="max-w-7xl w-full mx-auto space-y-6 md:bg-neutral-900 md:border border-neutral-800 p-6 rounded-2xl shadow-lg">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold text-neutral-100">
