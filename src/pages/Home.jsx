@@ -17,6 +17,13 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
+import { MoreHorizontalIcon } from "lucide-react";
 import { Trash2, Sun, Moon, Sunrise, Sunset, Globe } from "lucide-react";
 
 const TIME_ZONES = [
@@ -78,13 +85,14 @@ const TIME_ZONES = [
 const STORAGE_KEY = "saved_timezones";
 
 export default function Home() {
+  const [timeFormat, setTimeFormat] = useState("12h");
+  const [showUTC, setShowUTC] = useState(false);
   const [currentZone, setCurrentZone] = useState("");
   const [zones, setZones] = useState([]);
   const [selectedZone, setSelectedZone] = useState("");
   const [hoveredZone, setHoveredZone] = useState(null);
   const [now, setNow] = useState(new Date());
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const tzRef = useRef(null);
 
   // Detect user's current timezone
   useEffect(() => {
@@ -116,38 +124,42 @@ export default function Home() {
     return () => clearInterval(t);
   }, []);
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const mod = await import("date-fns-tz");
-        tzRef.current = (mod && (mod.default || mod)) || null;
-      } catch {
-        tzRef.current = null;
-      }
-      if (!mounted) tzRef.current = null;
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
   const formatTime = (zone) => {
-    const tz = tzRef.current;
     try {
-      if (tz && tz.formatInTimeZone) {
-        return tz.formatInTimeZone(now, zone, "hh:mm:ss a");
-      }
-      const parts = new Intl.DateTimeFormat("en-US", {
+      return new Intl.DateTimeFormat("en-US", {
         timeZone: zone,
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
-        hour12: true,
+        hour12: timeFormat === "12h",
       }).format(now);
-      return parts;
     } catch {
       return "--:--";
+    }
+  };
+
+  const getUTCOffset = (zone) => {
+    try {
+      const date = new Date();
+
+      // Format with shortOffset to get something like "GMT+7"
+      const formatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: zone,
+        timeZoneName: "shortOffset",
+      });
+
+      const parts = formatter.formatToParts(date);
+      const timeZonePart = parts.find((part) => part.type === "timeZoneName");
+
+      if (timeZonePart) {
+        // Replace GMT with UTC
+        return timeZonePart.value.replace("GMT", "UTC");
+      }
+
+      return "";
+    } catch (e) {
+      console.error("Error getting UTC offset:", e);
+      return "";
     }
   };
 
@@ -170,47 +182,39 @@ export default function Home() {
   const getDiffHours = (baseZone, targetZone) => {
     if (!baseZone || !targetZone) return 0;
     if (baseZone === targetZone) return 0;
-    const tz = tzRef.current;
+
     try {
-      if (tz && tz.utcToZonedTime) {
-        const baseZ = tz.utcToZonedTime(now, baseZone);
-        const targetZ = tz.utcToZonedTime(now, targetZone);
-        const diffMs = targetZ.getTime() - baseZ.getTime();
-        const diffHours = diffMs / 1000 / 3600;
-        return Math.round(diffHours * 10) / 10;
-      } else {
-        const getOffsetMinutes = (zone) => {
-          const f = new Intl.DateTimeFormat("en-US", {
-            timeZone: zone,
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-            hour12: false,
-          });
-          const parts = f.formatToParts(now);
-          const obj = {};
-          parts.forEach((p) => {
-            if (p.type !== "literal") obj[p.type] = p.value;
-          });
-          const y = parseInt(obj.year, 10);
-          const m = parseInt(obj.month, 10);
-          const d = parseInt(obj.day, 10);
-          const hh = parseInt(obj.hour, 10);
-          const mm = parseInt(obj.minute, 10);
-          const ss = parseInt(obj.second, 10);
-          const localTs = Date.UTC(y, m - 1, d, hh, mm, ss);
-          const nowUtc = now.getTime();
-          const offsetMinutes = (localTs - nowUtc) / 60000;
-          return -offsetMinutes;
-        };
-        const baseOff = getOffsetMinutes(baseZone);
-        const targetOff = getOffsetMinutes(targetZone);
-        const diffHours = (targetOff - baseOff) / 60;
-        return Math.round(diffHours * 10) / 10;
-      }
+      const getOffsetMinutes = (zone) => {
+        const f = new Intl.DateTimeFormat("en-US", {
+          timeZone: zone,
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: false,
+        });
+        const parts = f.formatToParts(now);
+        const obj = {};
+        parts.forEach((p) => {
+          if (p.type !== "literal") obj[p.type] = p.value;
+        });
+        const y = parseInt(obj.year, 10);
+        const m = parseInt(obj.month, 10);
+        const d = parseInt(obj.day, 10);
+        const hh = parseInt(obj.hour, 10);
+        const mm = parseInt(obj.minute, 10);
+        const ss = parseInt(obj.second, 10);
+        const localTs = Date.UTC(y, m - 1, d, hh, mm, ss);
+        const nowUtc = now.getTime();
+        const offsetMinutes = (localTs - nowUtc) / 60000;
+        return -offsetMinutes;
+      };
+      const baseOff = getOffsetMinutes(baseZone);
+      const targetOff = getOffsetMinutes(targetZone);
+      const diffHours = (targetOff - baseOff) / 60;
+      return Math.round(diffHours * 10) / 10;
     } catch {
       return 0;
     }
@@ -239,20 +243,12 @@ export default function Home() {
         hour12: false,
       });
 
-      // Format akan menghasilkan string 2 digit (misal: "08" atau "20")
       const hourString = formatter.format(now);
       const hour = parseInt(hourString, 10);
 
-      // 05:00 - 11:59 (Pagi hingga Tengah Hari)
       if (hour >= 5 && hour < 12) return "morning";
-
-      // 12:00 - 16:59 (Siang/Sore Awal)
       if (hour >= 12 && hour < 17) return "afternoon";
-
-      // 17:00 - 19:59 (Petang/Senja/Sore Akhir)
       if (hour >= 17 && hour < 20) return "evening";
-
-      // 20:00 - 04:59 (Malam hingga Dini Hari)
       return "night";
     } catch (e) {
       console.error("Error getting time for zone:", zone, e);
@@ -328,8 +324,9 @@ export default function Home() {
     if (hoveredZone === z) setHoveredZone(null);
   };
 
-  const renderCard = (zone, isCurrentTime = false) => {
+  const renderCard = (zone, isCurrentTime = false, displayUTC = false) => {
     const timeStr = formatTime(zone);
+    const utcStr = displayUTC ? getUTCOffset(zone) : null;
     const isRef = hoveredZone === zone;
     const timeOfDay = getTimeOfDay(zone);
     const colors = getTimeColors(timeOfDay);
@@ -341,27 +338,22 @@ export default function Home() {
     const displayName = tzInfo
       ? `${tzInfo.flag} ${tzInfo.label}`
       : zone.replace("_", " ");
-    const cityName = tzInfo ? tzInfo.label : zone.split("/")[1] || zone;
 
-    // Calculate sun position on curve (sunrise at 6am, sunset at 18pm)
-    // Map 0-24 hours to curve position
+    // Calculate sun position on curve
     const sunriseHour = 6;
     const sunsetHour = 18;
 
-    // Calculate Y position: above horizon during day (6-18), below at night
     const getSunY = (hour) => {
       if (hour >= sunriseHour && hour <= sunsetHour) {
-        // Day time - above horizon (sine curve from 6am to 6pm)
         const dayProgress = (hour - sunriseHour) / (sunsetHour - sunriseHour);
         const angle = dayProgress * Math.PI;
-        return 50 - Math.sin(angle) * 35; // 35 is amplitude
+        return 50 - Math.sin(angle) * 35;
       } else {
-        // Night time - below horizon
         let nightHour = hour < sunriseHour ? hour + 24 : hour;
         const nightProgress =
           (nightHour - sunsetHour) / (24 - sunsetHour + sunriseHour);
         const angle = nightProgress * Math.PI;
-        return 50 + Math.sin(angle) * 25; // 25 is night amplitude (smaller)
+        return 50 + Math.sin(angle) * 25;
       }
     };
 
@@ -381,12 +373,14 @@ export default function Home() {
       >
         {/* Info Section */}
         <div className="flex-1 relative z-10 space-y-3 text-nowrap">
-          {/* <IconComponent size={20} className="text-neutral-300" /> */}
           <div className="font-semibold text-lg text-neutral-100">
             {displayName}
           </div>
-          <div className="text-2xl font-bold text-neutral-100 ml-7 tabular-nums">
-            {timeStr}
+          <div className="ml-2">
+            <div className="text-2xl font-bold text-neutral-100 tabular-nums">
+              {timeStr}
+            </div>
+            {utcStr && <h3 className="text-sm text-neutral-300">{utcStr}</h3>}
           </div>
           <div
             className={`w-max flex items-center gap-2 text-xs px-2.5 py-1.5 rounded-md ${colors.badge}`}
@@ -398,14 +392,13 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Time Visualization - Side by side with info */}
+        {/* Time Visualization */}
         <div className="flex-0 relative w-full h-20">
           <svg
             className="w-full h-full opacity-40"
             viewBox="0 0 100 100"
             preserveAspectRatio="none"
           >
-            {/* Horizon line at y=50 (sunrise/sunset boundary) */}
             <line
               x1="0"
               y1="50"
@@ -417,11 +410,10 @@ export default function Home() {
               strokeDasharray="2,2"
             />
 
-            {/* Day curve (above horizon) - 6am to 6pm */}
             <path
               d={`M ${(6 / 24) * 100},50 ${[...Array(73).keys()]
                 .map((i) => {
-                  const hour = 6 + (i / 72) * 12; // 6am to 6pm
+                  const hour = 6 + (i / 72) * 12;
                   const x = (hour / 24) * 100;
                   const progress = (hour - 6) / 12;
                   const angle = progress * Math.PI;
@@ -435,13 +427,11 @@ export default function Home() {
               opacity="0.6"
             />
 
-            {/* Night curve (below horizon) - 6pm to 6am next day */}
             <path
               d={`M ${(18 / 24) * 100},50 ${[...Array(73).keys()]
                 .map((i) => {
-                  const hour = 18 + (i / 72) * 12; // 6pm to 6am
+                  const hour = 18 + (i / 72) * 12;
                   const x = (hour / 24) * 100;
-                  const nightHour = hour > 24 ? hour - 24 : hour;
                   const progress = (hour - 18) / 12;
                   const angle = progress * Math.PI;
                   const y = 50 + Math.sin(angle) * 25;
@@ -454,13 +444,12 @@ export default function Home() {
               opacity="0.3"
             />
 
-            {/* Wrap-around night curve for 0am-6am */}
             <path
               d={`M 0,${50 + Math.sin((6 / 12) * Math.PI) * 25} ${[
                 ...Array(37).keys(),
               ]
                 .map((i) => {
-                  const hour = (i / 36) * 6; // 0am to 6am
+                  const hour = (i / 36) * 6;
                   const x = (hour / 24) * 100;
                   const progress = (6 - hour) / 12;
                   const angle = (1 - progress) * Math.PI;
@@ -475,7 +464,6 @@ export default function Home() {
             />
           </svg>
 
-          {/* Sun/moon indicator */}
           <div
             className="absolute w-3 h-3 rounded-full transition-all duration-1000 z-10"
             style={{
@@ -487,7 +475,6 @@ export default function Home() {
             }}
           />
 
-          {/* Current time indicator line */}
           <div
             className="absolute top-0 bottom-0 w-0.5 bg-neutral-400/30 transition-all duration-1000"
             style={{
@@ -513,7 +500,6 @@ export default function Home() {
           )}
         </AnimatePresence>
 
-        {/* Animated overlay for time difference */}
         <AnimatePresence>
           {hoveredZone && hoveredZone !== zone && (
             <motion.div
@@ -531,7 +517,6 @@ export default function Home() {
           )}
         </AnimatePresence>
 
-        {/* Reference marker */}
         <AnimatePresence>
           {isRef && (
             <motion.div
@@ -553,62 +538,123 @@ export default function Home() {
   return (
     <div className="w-full flex flex-col items-center justify-center">
       <div className="max-w-7xl w-full mx-auto space-y-6 md:bg-neutral-900 md:border border-neutral-800 p-6 rounded-2xl shadow-lg">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-neutral-100">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <h2 className="text-xl font-semibold text-neutral-100 flex items-center">
             <Globe className="inline-block mr-2" size={24} />
             Time Zones
           </h2>
 
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" className="text-neutral-200">
-                + Add Time Zone
-              </Button>
-            </DialogTrigger>
+          {/* ✅ Desktop Buttons */}
+          <div className="hidden sm:flex gap-2 mb-4">
+            <Button
+              onClick={() =>
+                setTimeFormat(timeFormat === "12h" ? "24h" : "12h")
+              }
+            >
+              Toggle {timeFormat === "12h" ? "24h" : "12h"}
+            </Button>
 
-            <DialogContent className="bg-neutral-900 border-neutral-800 text-neutral-100">
-              <DialogHeader>
-                <DialogTitle>Select a Time Zone</DialogTitle>
-                <DialogDescription>
-                  Choose a zone to add to the list
-                </DialogDescription>
-              </DialogHeader>
+            <Button onClick={() => setShowUTC(!showUTC)}>
+              {showUTC ? "Hide UTC" : "Show UTC"}
+            </Button>
 
-              <div className="space-y-4">
-                <Select
-                  value={selectedZone || ""}
-                  onValueChange={setSelectedZone}
-                >
-                  <SelectTrigger className="w-full border-neutral-700 text-neutral-100">
-                    <SelectValue placeholder="Choose zone..." />
-                  </SelectTrigger>
-                  <SelectContent className="bg-neutral-900 border-neutral-700">
-                    {TIME_ZONES.map((tzv) => (
-                      <SelectItem key={tzv.value} value={tzv.value}>
-                        {tzv.flag} {tzv.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Button
-                  onClick={handleAddZone}
-                  disabled={!selectedZone}
-                  className="w-full"
-                >
-                  Add Zone
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="text-neutral-200">
+                  + Add Time Zone
                 </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+
+              <DialogContent className="max-w-md bg-neutral-900/95 border border-neutral-800 text-neutral-100 backdrop-blur-md rounded-2xl shadow-xl">
+                <DialogHeader className="text-center space-y-2">
+                  <DialogTitle className="text-2xl font-semibold tracking-wide text-white">
+                    Select a Time Zone
+                  </DialogTitle>
+                  <DialogDescription className="text-neutral-400">
+                    Choose a zone to add to your list
+                  </DialogDescription>
+                </DialogHeader>
+
+                {/* Decorative Divider */}
+                <div className="w-full h-px bg-gradient-to-r from-transparent via-neutral-700 to-transparent my-4" />
+
+                {/* Animated Section */}
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="space-y-4"
+                >
+                  <Select
+                    value={selectedZone || ""}
+                    onValueChange={setSelectedZone}
+                  >
+                    <SelectTrigger className="w-full border-neutral-700 bg-neutral-800/60 text-neutral-100 hover:bg-neutral-800 transition-colors rounded-xl">
+                      <SelectValue placeholder="🌍 Choose zone..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-neutral-900 border-neutral-700 rounded-xl">
+                      {TIME_ZONES.map((tzv) => (
+                        <SelectItem key={tzv.value} value={tzv.value}>
+                          {tzv.flag} {tzv.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Button
+                    onClick={handleAddZone}
+                    disabled={!selectedZone}
+                    variant="default"
+                    className="w-full"
+                  >
+                    Add Zone
+                  </Button>
+                </motion.div>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {/* ✅ Mobile Dropdown */}
+          <div className="sm:hidden">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  aria-label="Open menu"
+                  size="icon-sm"
+                  className="p-2"
+                >
+                  <MoreHorizontalIcon />
+                </Button>
+              </DropdownMenuTrigger>
+
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={() =>
+                    setTimeFormat(timeFormat === "12h" ? "24h" : "12h")
+                  }
+                >
+                  Toggle {timeFormat === "12h" ? "24h" : "12h"}
+                </DropdownMenuItem>
+
+                <DropdownMenuItem onClick={() => setShowUTC(!showUTC)}>
+                  {showUTC ? "Hide UTC" : "Show UTC"}
+                </DropdownMenuItem>
+
+                <DropdownMenuItem onClick={() => setIsDialogOpen(true)}>
+                  + Add Time Zone
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {/* Current Time Card - Always first and can't be deleted */}
-          {currentZone && renderCard(currentZone, true)}
+          {/* Current Time Card */}
+          {currentZone && renderCard(currentZone, true, showUTC)}
 
           {/* Other timezone cards */}
-          {zones.map((zone) => renderCard(zone, false))}
+          {zones.map((zone) => renderCard(zone, false, showUTC))}
         </div>
       </div>
     </div>
